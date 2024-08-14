@@ -5,12 +5,13 @@
     <title>Text Detection and Recognition</title>
     <script async src="opencv.js" type="text/javascript"></script>
     <script src="tesseract.js"></script>
+    
 </head>
 <body>
 <h2>Text Detection and Recognition</h2>
 
 <div>
-    <img id="imageSrc" alt="No Image" />
+    <img  id="imageSrc" alt="No Image" />
     <input type="file" id="fileInput" name="file" />
     <canvas id="canvasOutput"></canvas>
 </div>
@@ -27,121 +28,54 @@ inputElement.addEventListener("change", (e) => {
     };
 }, false);
 
-async function processImage() {
+function processImage() {
+    
     let src = cv.imread(imgElement);
     let gray = new cv.Mat();
     let threshold = new cv.Mat();
-    let bestC = null;
-    let bestBlockSize = null;
-    let bestErrors = Infinity;
+    let threshold2 = new cv.Mat();
+    // Convert to grayscale
+    cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY,0);
 
+    // Apply binary thresholding
+    cv.adaptiveThreshold(gray, threshold,255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,  cv.THRESH_BINARY_INV,43,43);//THESE LAST TO ELEMENTS
+    //cv.threshold(gray, threshold, 0,255, cv.THRESH_BINARY +cv.THRESH_OTSU);
     
-    for (let blockSize = 3; blockSize < 100; blockSize += 2) {
-        console.log(blockSize);
-        for (let c = 3; c <= blockSize; c += 2) {
-            cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY, 0);
-            cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, blockSize, c);
-            cv.imshow('canvasOutput', threshold);
-            let dataUrl = canvas.toDataURL('image/png');
+    // Show result
+    cv.imshow('canvasOutput', threshold);
+    
+    // Convert image to base64 for OCR
+    let dataUrl = canvas.toDataURL('image/png');
+    performOCR(dataUrl);
 
-            let errors = await performOCR(dataUrl);
-            console.log(errors);
-            if (errors < bestErrors) {
-                bestErrors = errors;
-                bestC = c;
-                bestBlockSize = blockSize;
-                console.log('Best C for now:', bestC);
-                console.log('Best Block Size for now:', bestBlockSize);
-                console.log('Best Errors for now:', bestErrors);
-            }
-        }
-    }
-
-    console.log('Best C:', bestC);
-    console.log('Best Block Size:', bestBlockSize);
-    console.log('Best Errors:', bestErrors);
-
+    // Clean up
     src.delete();
     gray.delete();
     threshold.delete();
 }
 
 function performOCR(imageData) {
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => resolve(1000), 12000);
+    // Convert base64 to binary data
+    fetch(imageData)
+        .then(res => res.arrayBuffer())
+        .then(buffer => {
+            // Create a Blob from the binary data
+            const blob = new Blob([buffer]);
 
-        fetch(imageData)
-            .then(res => res.arrayBuffer())
-            .then(buffer => {
-                const blob = new Blob([buffer]);
-
-                Tesseract.recognize(
-                    blob,
-                    'tur', 
-                    {
-                        oem: 1,
-                        psm: 6,
-                    }
-                ).then(({ data: { text } }) => {
-                    clearTimeout(timer);
-                    resolve(countErrors(text));
-                }).catch(err => {
-                    clearTimeout(timer);
-                    console.error('OCR error:', err);
-                    resolve(1000); 
-                });
+            // Perform OCR using Tesseract.js
+            Tesseract.recognize(
+                blob,
+                'tur', // Language
+                {
+                    oem: 1, // OCR Engine Mode
+                    psm: 6, // Page Segmentation Mode
+                }
+            ).then(({ data: { text } }) => {
+                console.log('Detected text:', text);
+            }).catch(err => {
+                console.error('OCR error:', err);
             });
-    });
-}
-
-function countErrors(text) {
-    let errors = 0;
-
-    if (!text) return 1000;
-
-    errors += (text.match(/[^a-zA-ZçÇğĞıİöÖşŞüÜ\s.,!?=']/g) || []).length * 10;
-
-    const expectedText = "Değerlendirme Sonucu SORULAR 1. Bisection Yöntemini kullanarak aşağıdaki denklemin kökünü tahmin ediniz. Başlangıç noktaları x1 = 0.5 ve xu 2'dir. Sadece 3 yineleme (iterasyon) gösteriniz. Her bir yineleme için göreceli hata yüzdesini (relative percentage error) hesaplayınız. f(x) = In (x2) — 0.7 2. Fixed Point Iteration Yöntemini kullanarak aşağıdaki denklemin kökünü tahmin ediniz. İlk tahmin x=0 'dır. Sadece 3 yineleme (iterasyon) gösteriniz. Her bir yineleme için göreceli hata yüzdesini (relative percentage error) hesaplayınız. f(x) = x3- 2x - 3 3. Secant Yöntemini kullanarak aşağıdaki denklemin kökünü tahmin ediniz. Başlangıç tahn Xo = 2 ve x1 = 3 'tür. Sıfır hata bulduğunuzda veya en fazla 3 yineleme (iterasyon) son durunuz. Yapılan her bir yineleme için göreceli hata yüzdesini (relative percentage hesaplayınız. f(x) = x3-3x2 + 2x-6 - Aşağıdaki doğrusal denklem sistemini çözmek için Gauss-Jordan Yöntemini kul 0 Y +3x-7";
-    const actualText = text.replace(/[\s.,!?=']/g, '').toLowerCase();
-    const expectedTextNormalized = expectedText.replace(/[\s.,!?=']/g, '').toLowerCase();
-
-    errors += levenshteinDistance(actualText, expectedTextNormalized);
-
-    return errors;
-}
-
-function levenshteinDistance(a, b) {
-    const an = a.length;
-    const bn = b.length;
-    if (an === 0) return bn;
-    if (bn === 0) return an;
-    
-    const matrix = [];
-
-    let i;
-    for (i = 0; i <= bn; i++) {
-        matrix[i] = [i];
-    }
-
-    let j;
-    for (j = 0; j <= an; j++) {
-        matrix[0][j] = j;
-    }
-
-    for (i = 1; i <= bn; i++) {
-        for (j = 1; j <= an; j++) {
-            if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                matrix[i][j] = matrix[i - 1][j - 1];
-            } else {
-                matrix[i][j] = Math.min(
-                    matrix[i - 1][j - 1] + 1,
-                    Math.min(matrix[i][j - 1] + 1,
-                             matrix[i - 1][j] + 1));
-            }
-        }
-    }
-
-    return matrix[bn][an];
+        });
 }
 </script>
 </body>
