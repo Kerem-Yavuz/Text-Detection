@@ -13,6 +13,8 @@ app.get('/', (req, res) => {
     res.redirect('/anasayfa');
 });
 
+app.use('/langdata', express.static(path.join(__dirname, 'langdata')));
+
 let port = 8001;
 let ip = "0.0.0.0";
 

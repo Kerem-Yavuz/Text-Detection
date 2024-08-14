@@ -5,13 +5,12 @@
     <title>Text Detection and Recognition</title>
     <script async src="opencv.js" type="text/javascript"></script>
     <script src="tesseract.js"></script>
-    
 </head>
 <body>
 <h2>Text Detection and Recognition</h2>
 
 <div>
-    <img  id="imageSrc" alt="No Image" />
+    <img id="imageSrc" alt="No Image" style="display:none;" />
     <input type="file" id="fileInput" name="file" />
     <canvas id="canvasOutput"></canvas>
 </div>
@@ -20,53 +19,154 @@
 let imgElement = document.getElementById("imageSrc");
 let inputElement = document.getElementById("fileInput");
 let canvas = document.getElementById("canvasOutput");
+let ctx = canvas.getContext('2d');
+let points = [];
+const maxPoints = 4;
+let originalImageData = null; // To store the original image data for OpenCV processing
 
 inputElement.addEventListener("change", (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
     imgElement.onload = function() {
-        processImage();
+        // Set canvas dimensions and draw the original image
+        canvas.width = imgElement.naturalWidth;
+        canvas.height = imgElement.naturalHeight;
+        ctx.drawImage(imgElement, 0, 0);
+
+        // Store original image data for OpenCV processing
+        originalImageData = canvas.toDataURL('image/png');
+        
+        // Clear points and add event listener for clicks
+        points = [];
+        canvas.addEventListener('click', onCanvasClick);
     };
 }, false);
 
-function processImage() {
-    
-    let src = cv.imread(imgElement);
-    let gray = new cv.Mat();
-    let threshold = new cv.Mat();
-    let threshold2 = new cv.Mat();
-    // Convert to grayscale
-    cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY,0);
+function onCanvasClick(event) {
+    if (points.length >= maxPoints) return;
 
-    // Apply binary thresholding
-    cv.adaptiveThreshold(gray, threshold,255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,  cv.THRESH_BINARY_INV,43,43);//THESE LAST TO ELEMENTS
-    //cv.threshold(gray, threshold, 0,255, cv.THRESH_BINARY +cv.THRESH_OTSU);
-    
-    // Show result
-    cv.imshow('canvasOutput', threshold);
-    
-    // Convert image to base64 for OCR
-    let dataUrl = canvas.toDataURL('image/png');
-    performOCR(dataUrl);
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
 
-    // Clean up
-    src.delete();
-    gray.delete();
-    threshold.delete();
+    points.push({ x, y });
+    console.log(`Point ${points.length}: (${x}, ${y})`);
+
+    // Draw the point on the canvas
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'red';
+    ctx.fill();
+
+    if (points.length === maxPoints) {
+        console.log('All points:', points);
+        canvas.removeEventListener('click', onCanvasClick);
+        calculateDimensions(points);
+        // Process the original image with OpenCV
+        processImage(originalImageData);
+    }
+}
+
+function processImage(imageData) {
+    let img = new Image();
+    img.onload = function() {
+        let src = cv.imread(img);
+        let gray = new cv.Mat();
+        let threshold = new cv.Mat();
+        let eroded = new cv.Mat();
+
+
+        let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
+        let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
+
+        window.input_pts.forEach((pt, i) => {
+            input_pts.floatPtr(i)[0] = pt[0];
+            input_pts.floatPtr(i)[1] = pt[1];
+        });
+
+        // Output points for new transformed image
+        output_pts.floatPtr(0)[0] = 0;
+        output_pts.floatPtr(0)[1] = 0;
+        output_pts.floatPtr(1)[0] = 0;
+        output_pts.floatPtr(1)[1] = window.max_width;
+        output_pts.floatPtr(2)[0] = window.max_height;
+        output_pts.floatPtr(2)[1] = 0;
+        output_pts.floatPtr(3)[0] = window.max_height;
+        output_pts.floatPtr(3)[1] = window.max_width;
+
+        // Compute the perspective transform M
+        let M = cv.getPerspectiveTransform(input_pts, output_pts);
+
+        // Apply perspective transformation
+        let dst = new cv.Mat();
+        cv.warpPerspective(src, dst, M, new cv.Size(window.max_height, window.max_width), cv.INTER_LINEAR);
+
+        // Convert to grayscale
+        cv.cvtColor(dst, gray, cv.COLOR_RGB2GRAY, 0);
+
+        // Apply binary thresholding
+        cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 45, 8);
+
+        // Define a structuring element
+        let erodekernel = cv.Mat.ones(2, 2, cv.CV_8U);
+
+        // Apply erosion
+        cv.erode(threshold, eroded, erodekernel, new cv.Point(-1, -1), 1);
+
+        
+
+        // Show result
+        cv.imshow('canvasOutput', eroded);
+        let dataUrl = canvas.toDataURL('image/png');
+        performOCR(dataUrl);
+
+        // Clean up
+        src.delete();
+        gray.delete();
+        threshold.delete();
+        eroded.delete();
+    };
+    img.src = imageData;
+}
+
+function calculateDimensions(points) {
+    if (points.length < 4) return;
+
+    function distance(pt1, pt2) {
+        return Math.sqrt(Math.pow(pt1.x - pt2.x, 2) + Math.pow(pt1.y - pt2.y, 2));
+    }
+
+    let pt1 = points[0];
+    let pt2 = points[1];
+    let pt3 = points[2];
+    let pt4 = points[3];
+
+    let height_1 = distance(pt1, pt2);
+    let height_2 = distance(pt3, pt4);
+    let width_1 = distance(pt1, pt3);
+    let width_2 = distance(pt2, pt4);
+
+    let max_height = Math.max(height_1, height_2);
+    let max_width = Math.max(width_1, width_2);
+
+    console.log(`Max Height: ${Math.round(max_height)}`);
+    console.log(`Max Width: ${Math.round(max_width)}`);
+
+    window.max_height = Math.round(max_width);
+    window.max_width = Math.round(max_height);
+    window.input_pts = points.map(p => [p.x, p.y]);
 }
 
 function performOCR(imageData) {
-    // Convert base64 to binary data
     fetch(imageData)
         .then(res => res.arrayBuffer())
         .then(buffer => {
-            // Create a Blob from the binary data
             const blob = new Blob([buffer]);
 
-            // Perform OCR using Tesseract.js
             Tesseract.recognize(
                 blob,
                 'tur', // Language
-                {
+                {  
+                    langPath: "./tessdata",
                     oem: 1, // OCR Engine Mode
                     psm: 6, // Page Segmentation Mode
                 }
