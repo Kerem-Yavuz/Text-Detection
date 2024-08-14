@@ -12,9 +12,10 @@
 <div>
     <img id="imageSrc" alt="No Image" style="display:none;" />
     <input type="file" id="fileInput" name="file" />
+    <input type="button" onclick="reset()" value="reset">
     <canvas id="canvasOutput"></canvas>
 </div>
-
+<p id = "detectedText" style="font-size: 20px;">Text</p>
 <script type="text/javascript">
 let imgElement = document.getElementById("imageSrc");
 let inputElement = document.getElementById("fileInput");
@@ -40,7 +41,15 @@ inputElement.addEventListener("change", (e) => {
         canvas.addEventListener('click', onCanvasClick);
     };
 }, false);
-
+function reset()
+{
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    imgElement.src = '';
+    inputElement.value = '';
+    points = [];
+    canvas.removeEventListener('click', onCanvasClick);
+    document.getElementById("detectedText").textContent = "Text";
+}
 function onCanvasClick(event) {
     if (points.length >= maxPoints) return;
 
@@ -72,8 +81,6 @@ function processImage(imageData) {
         let src = cv.imread(img);
         let gray = new cv.Mat();
         let threshold = new cv.Mat();
-        let eroded = new cv.Mat();
-
 
         let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
         let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
@@ -104,18 +111,10 @@ function processImage(imageData) {
         cv.cvtColor(dst, gray, cv.COLOR_RGB2GRAY, 0);
 
         // Apply binary thresholding
-        cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 45, 8);
-
-        // Define a structuring element
-        let erodekernel = cv.Mat.ones(2, 2, cv.CV_8U);
-
-        // Apply erosion
-        cv.erode(threshold, eroded, erodekernel, new cv.Point(-1, -1), 1);
-
-        
+        cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 8);
 
         // Show result
-        cv.imshow('canvasOutput', eroded);
+        cv.imshow('canvasOutput', threshold);
         let dataUrl = canvas.toDataURL('image/png');
         performOCR(dataUrl);
 
@@ -123,7 +122,6 @@ function processImage(imageData) {
         src.delete();
         gray.delete();
         threshold.delete();
-        eroded.delete();
     };
     img.src = imageData;
 }
@@ -172,6 +170,7 @@ function performOCR(imageData) {
                 }
             ).then(({ data: { text } }) => {
                 console.log('Detected text:', text);
+                document.getElementById('detectedText').textContent = text
             }).catch(err => {
                 console.error('OCR error:', err);
             });
