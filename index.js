@@ -14,6 +14,8 @@ app.get('/', (req, res) => {
 });
 
 app.use('/langdata', express.static(path.join(__dirname, 'langdata')));
+app.use('/tessdata', express.static(path.join(__dirname, 'tessdata')));
+
 
 let port = 8001;
 let ip = "0.0.0.0";
