@@ -14,6 +14,8 @@
     <input type="file" id="fileInput" name="file" />
     <input type="button" onclick="reset()" value="reset">
     <canvas id="canvasOutput"></canvas>
+    <canvas id="canvasoutputrect"></canvas>
+    <button id="showRectanglesButton">Show Rectangles</button>
 </div>
 <p id = "detectedText" style="font-size: 20px;">Text</p>
 <script type="text/javascript">
@@ -79,8 +81,9 @@ function processImage(imageData) {
     let img = new Image();
     img.onload = function() {
         let src = cv.imread(img);
-        let gray = new cv.Mat();
         let threshold = new cv.Mat();
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
 
         let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
         let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
@@ -108,23 +111,160 @@ function processImage(imageData) {
         cv.warpPerspective(src, dst, M, new cv.Size(window.max_height, window.max_width), cv.INTER_LINEAR);
 
         // Convert to grayscale
-        cv.cvtColor(dst, gray, cv.COLOR_RGB2GRAY, 0);
+        threshold = filter(dst);
 
-        // Apply binary thresholding
-        cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 8);
+        // Find contours
+        cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+
+        // Initialize the output image
+        let dst2 = new cv.Mat.zeros(dst.rows, dst.cols, cv.CV_8UC3);
+
+        let extractedImages = [];
+        let rectangles = [];
+
+        // Combine and draw contours for larger areas
+        let rectangleColor = new cv.Scalar(0, 255, 0);
+        for (let i = 0; i < contours.size(); ++i) {
+            let cnt = contours.get(i);
+            let rect = cv.boundingRect(cnt);
+
+            // Filter contours based on size to avoid small text areas
+            if (rect.width > 5 && rect.height > 5) { // Adjust these thresholds as needed
+                let point1 = new cv.Point(rect.x, rect.y);
+                let point2 = new cv.Point(rect.x + rect.width, rect.y + rect.height);
+                
+                rectangles.push({
+                    x: rect.x,
+                    y: rect.y,
+                    height: rect.height,
+                    width: rect.width
+                });
+                cv.rectangle(dst2, point1, point2, rectangleColor, 2, cv.LINE_AA, 0);
+            }
+        }
+
+        // Function to check if two rectangles overlap or are close
+        function areRectanglesClose(r1, r2, thresholdX, thresholdY) {
+            let dx = Math.max(r1.x, r2.x) - Math.min(r1.x + r1.width, r2.x + r2.width);
+            let dy = Math.max(r1.y, r2.y) - Math.min(r1.y + r1.height, r2.y + r2.height);
+            return dx < thresholdX && dy < thresholdY;
+        }
+
+        // Function to merge two rectangles
+        function mergeRectangles(r1, r2) {
+            let left = Math.min(r1.x, r2.x);
+            let top = Math.min(r1.y, r2.y);
+            let right = Math.max(r1.x + r1.width, r2.x + r2.width);
+            let bottom = Math.max(r1.y + r1.height, r2.y + r2.height);
+
+            return {
+                x: left,
+                y: top,
+                width: right - left,
+                height: bottom - top
+            };
+        }
+
+        // Merge overlapping or close rectangles and fill merged areas with white rectangles
+        function mergeAllRectangles(rects, closeThresholdX, closeThresholdY) {
+            let merged = [];
+            while (rects.length > 0) {
+                let current = rects.shift();
+                let toMerge = [current];
+                for (let i = rects.length - 1; i >= 0; i--) {
+                    if (areRectanglesClose(current, rects[i], closeThresholdX, closeThresholdY)) {
+                        toMerge.push(rects.splice(i, 1)[0]);
+                    }
+                }
+                if (toMerge.length > 0) {
+                    let mergedRect = toMerge.reduce((acc, rect) => mergeRectangles(acc, rect));
+                    merged.push(mergedRect);
+                    
+                    // Draw white rectangle in the merged area
+                    let point1 = new cv.Point(mergedRect.x, mergedRect.y);
+                    let point2 = new cv.Point(mergedRect.x + mergedRect.width, mergedRect.y + mergedRect.height);
+                    cv.rectangle(dst2, point1, point2, new cv.Scalar(255, 255, 255), -1);
+                }
+            }
+            return merged;
+        }
+
+        // Define a threshold distance for merging close rectangles
+        const closeThresholdX = 20; // Adjust this value as needed
+        const closeThresholdY = 5; // Adjust this value as needed
+
+        // Update rectangles with merged results
+        rectangles = mergeAllRectangles(rectangles, closeThresholdX, closeThresholdY);
+
+        // Extract the regions based on merged rectangles
+        let updatedExtractedImages = [];
+        rectangles.forEach(rect => {
+            let roi = dst.roi(new cv.Rect(rect.x, rect.y, rect.width, rect.height));
+            updatedExtractedImages.push(roi);
+        });
+
+        console.log(updatedExtractedImages);
+        console.log(rectangles);
 
         // Show result
         cv.imshow('canvasOutput', threshold);
-        let dataUrl = canvas.toDataURL('image/png');
-        performOCR(dataUrl);
+        cv.imshow('canvasoutputrect', dst2);
+
+        updatedExtractedImages.forEach((image, i) => {
+            // Create a unique canvas ID for each image
+            let canvasId = `canvasoutput${i}`;
+
+            // Create a new canvas element
+            let canvas2 = document.createElement('canvas');
+            canvas2.id = canvasId;
+            canvas2.width = image.cols;
+            canvas2.height = image.rows;
+            if (image.rows === window.max_width && image.cols === window.max_height) {
+                return; // we want smaller part so it will not look to the whole image
+            }
+            document.body.appendChild(canvas2); // Append the canvas to the body (or any container you prefer)
+
+            threshold = filter(image);
+
+            // Display the image on the canvas
+            cv.imshow(canvasId, threshold);
+
+            // Convert canvas to data URL
+            let canvasElement = document.getElementById(canvasId);
+            let dataURL = canvasElement.toDataURL('image/png');
+
+            // Perform OCR with the data URL
+            // performOCR(dataURL);
+        });
 
         // Clean up
         src.delete();
-        gray.delete();
         threshold.delete();
+        contours.delete();
+        hierarchy.delete();
+        dst.delete();
+        dst2.delete();
+        input_pts.delete();
+        output_pts.delete();
+        M.delete();
     };
     img.src = imageData;
 }
+
+
+function filter(input)
+{
+    let gray = new cv.Mat();
+    let threshold = new cv.Mat();
+    cv.cvtColor(input, gray, cv.COLOR_RGB2GRAY, 0);
+
+        // Apply binary thresholding
+    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 7);
+    return threshold;
+}
+
+
+
 
 function calculateDimensions(points) {
     if (points.length < 4) return;
@@ -165,7 +305,7 @@ function performOCR(imageData) {
                 'tur', // Language
                 {  
                     langPath: "./tessdata",
-                    oem: 1, // OCR Engine Mode
+                    oem: 3, // OCR Engine Mode
                     psm: 6, // Page Segmentation Mode
                 }
             ).then(({ data: { text } }) => {
