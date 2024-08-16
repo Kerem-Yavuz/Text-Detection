@@ -61,7 +61,7 @@ function processImage(imageData) {
             if(rect.width !== src.cols && rect.height !== src.rows)
             {
             // Filter contours based on size to avoid small text areas
-            if (rect.width > src.cols / 2 && rect.height > src.rows / 2) { // Adjust these thresholds as needed
+            if (rect.width > src.cols / 3 && rect.height > src.rows / 3) { // Adjust these thresholds as needed
 
                 // Approximate the contour to a polygon with fewer vertices
                 let approx = new cv.Mat();
@@ -75,7 +75,7 @@ function processImage(imageData) {
                         points.push([corner.x, corner.y]);
                         console.log(`Corner ${j + 1}:`, corner);
                     }
-
+                    orderPoints(points);
                     // New Perspective Transformation
                     let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
                     let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
@@ -95,14 +95,34 @@ function processImage(imageData) {
                     output_pts.floatPtr(2)[1] = window.max_height;
                     output_pts.floatPtr(3)[0] = 0;
                     output_pts.floatPtr(3)[1] = window.max_height;
-
+                    
 
                     let matrix = cv.getPerspectiveTransform(input_pts, output_pts);
                     let warped = new cv.Mat();
                     cv.warpPerspective(src, warped, matrix, new cv.Size(window.max_width, window.max_height), cv.INTER_LINEAR);
                     threshold = filter(warped);
-                    cv.imshow('canvasOutput', threshold);
-                    let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
+
+
+                    let canvasId = `canvasoutput${i}`;
+
+            // Create a new canvas element
+            let canvas2 = document.createElement('canvas');
+            canvas2.id = canvasId;
+            canvas2.width = threshold.cols;
+            canvas2.height = threshold.rows;
+            document.body.appendChild(canvas2); // Append the canvas to the body (or any container you prefer)
+
+            
+
+            // Display the image on the canvas
+            cv.imshow(canvasId, threshold);
+
+            // Convert canvas to data URL
+            let canvasElement = document.getElementById(canvasId);
+            let dataURL = canvasElement.toDataURL('image/png');
+
+                    //cv.imshow('canvasOutput', threshold);
+                    //let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
                     performOCR(dataURL);
                     
                     // Clean up
@@ -140,6 +160,30 @@ function filter(input)
         // Apply binary thresholding
     cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 13);
     return threshold;
+}
+
+function orderPoints(points)
+{
+        
+        points.sort((a, b) => a[1] - b[1]);
+    
+
+        
+        let smallestTwo = points.slice(0, 2);
+        let largestTwo = points.slice(2);
+    
+       
+        smallestTwo.sort((a, b) => a[0] - b[0]);
+    
+            
+        largestTwo.sort((a, b) => b[0] - a[0]);
+
+        
+        
+        points[0] = smallestTwo[0]; //top-left
+        points[1] = smallestTwo[1]; //top-right
+        points[2] = largestTwo[0];  //bottom-right
+        points[3] = largestTwo[1]; // bottom-left
 }
 
 
