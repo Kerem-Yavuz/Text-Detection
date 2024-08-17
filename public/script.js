@@ -25,12 +25,28 @@ inputElement.addEventListener("change", (e) => {
     };
 }, false);
 function reset()
-{
+{   
+    canvas.width = 0;
+    canvas.height = 0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     imgElement.src = '';
     inputElement.value = '';
     points = [];
-    
+    canvas.width = 0;
+    canvas.height = 0;
+
+    document.getElementById("canvasoutputrect").remove();
+
+    let canvasdots = document.createElement('canvas');
+    canvasdots.id = "canvasoutputrect";
+    canvasdots.width = 0;
+    canvasdots.height = 0;
+    document.body.appendChild(canvasdots);
+
+    let outputs = document.getElementsByClassName("outputs");
+    while(outputs.length > 0){
+        outputs[0].parentNode.removeChild(outputs[0]);
+    }
     document.getElementById("detectedText").textContent = "Text";
 }
 
@@ -52,7 +68,7 @@ function processImage(imageData) {
 
         // Initialize the output image
         let dst = new cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-
+        let send = 0;
         // Combine and draw contours for larger areas
         for (let i = 0; i < contours.size(); ++i) {
             let cnt = contours.get(i);
@@ -85,7 +101,7 @@ function processImage(imageData) {
                         input_pts.floatPtr(i)[0] = pt[0];
                         input_pts.floatPtr(i)[1] = pt[1];
                     });
-                    
+                    send++;
                     
                     output_pts.floatPtr(0)[0] = 0;
                     output_pts.floatPtr(0)[1] = 0;
@@ -110,6 +126,8 @@ function processImage(imageData) {
             canvas2.id = canvasId;
             canvas2.width = threshold.cols;
             canvas2.height = threshold.rows;
+            canvas2.classList = "outputs";
+            canvas2.style.display = "block";
             document.body.appendChild(canvas2); // Append the canvas to the body (or any container you prefer)
 
             
@@ -123,6 +141,7 @@ function processImage(imageData) {
 
                     //cv.imshow('canvasOutput', threshold);
                     //let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
+                    if(send === 1)
                     performOCR(dataURL);
                     
                     // Clean up
@@ -136,7 +155,9 @@ function processImage(imageData) {
                 approx.delete();
             }
             }
+            
         }
+
 
         cv.imshow('canvasoutputrect', dst);
 
@@ -166,24 +187,27 @@ function orderPoints(points)
 {
         
         points.sort((a, b) => a[1] - b[1]);
-    
-
         
         let smallestTwo = points.slice(0, 2);
         let largestTwo = points.slice(2);
-    
        
         smallestTwo.sort((a, b) => a[0] - b[0]);
-    
-            
         largestTwo.sort((a, b) => b[0] - a[0]);
 
-        
-        
         points[0] = smallestTwo[0]; //top-left
         points[1] = smallestTwo[1]; //top-right
         points[2] = largestTwo[0];  //bottom-right
         points[3] = largestTwo[1]; // bottom-left
+
+        //it still takes a little bit of the line so we will take 5px inside each point
+        points[0][0] = points[0][0] + 5;
+        points[0][1] = points[0][1] + 5;
+        points[1][0] = points[1][0] - 5;
+        points[1][1] = points[1][1] + 5;
+        points[2][0] = points[2][0] - 5;
+        points[2][1] = points[2][1] - 5;
+        points[3][0] = points[3][0] + 5;
+        points[3][1] = points[3][1] - 5;
 }
 
 
@@ -218,25 +242,20 @@ function calculateDimensions(points) {
 }
 
 
-function performOCR(imageData) {
-    fetch(imageData)
-        .then(res => res.arrayBuffer())
-        .then(buffer => {
-            const blob = new Blob([buffer]);
-            console.log("loading");
-            Tesseract.recognize(
-                blob,
-                'eng+tur', // Language
-                {  
-                    langPath: "./tessdata",
-                    oem: 3, // OCR Engine Mode
-                    psm: 6, // Page Segmentation Mode
-                }
-            ).then(({ data: { text } }) => {
-                console.log('Detected text:', text);
-                document.getElementById('detectedText').textContent = text
-            }).catch(err => {
-                console.error('OCR error:', err);
-            });
-        });
+function performOCR(imgData) {
+    fetch('/performOCR', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imgData }) // Ensure imgData is a string
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('detectedText').textContent = data.text;
+        console.log(data.text);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
 }
