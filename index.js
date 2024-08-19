@@ -22,9 +22,6 @@ app.get('/', (req, res) => {
     res.redirect('/anasayfa');
 });
 
-app.use('/langdata', express.static(path.join(__dirname, 'langdata')));
-app.use('/tessdata', express.static(path.join(__dirname, 'tessdata')));
-
 
 app.post('/performOCR', async (req, res) => {
     try {
@@ -48,9 +45,62 @@ app.post('/performOCR', async (req, res) => {
         // Create a Tesseract worker
         const worker = await createWorker();
 
+        
+        await worker.setParameters({
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzçğıöşüÇĞİÖŞÜ1234567890'
+        });
+
         // Perform OCR on the image file
-        const { data: { text } } = await worker.recognize(imagePath);
+        const { data: { text } } = await worker.recognize(imagePath , 'tur');
         console.log('Detected text:', text);
+        
+
+        const ocrOutput = text;
+
+        const data = {};
+        
+        // Helper function to clean and normalize text
+        function cleanText(text) {
+            return text.replace(/[\s:]+/g, ' ').trim().toLowerCase();
+        }
+        
+        // Patterns for extraction with potential OCR variations
+        const patterns = {
+            tckimlikno: /tckimlikno\s*[:\s]*(\d{11})/i, // Turkish ID numbers are 11 digits long
+            ad: /adi\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i,
+            soyad: /soyadi\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i,
+            ogrencino: /sgrenci\s*no\s*[:\s]*([\d]{8})/i // Modified to 8 digits
+        };
+        
+        for (const [key, pattern] of Object.entries(patterns)) {
+            const match = cleanText(ocrOutput).match(pattern);
+            if (match) {
+                data[key] = match[1].trim();
+            }
+        }
+        
+        // Additional checks for specific manual extraction if necessary
+        const adMatch = cleanText(ocrOutput).match(/ad\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i);
+        if (adMatch) {
+            data.ad = adMatch[1].trim();
+        }
+        
+        const soyadMatch = cleanText(ocrOutput).match(/soy\s*adi\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i);
+        if (soyadMatch) {
+            data.soyad = soyadMatch[1].trim();
+        }
+        
+        const tckimliknoMatch = cleanText(ocrOutput).match(/tckimlikno\s*[:\s]*(\d{11})/i);
+        if (tckimliknoMatch) {
+            data.tckimlikno = tckimliknoMatch[1].trim();
+        }
+        
+        const ogrenciNoMatch = cleanText(ocrOutput).match(/ogrenci\s*no\s*[:\s]*([\d]{8})/i);
+        if (ogrenciNoMatch) {
+            data.ogrencino = ogrenciNoMatch[1].trim();
+        }
+        
+        console.log(JSON.stringify(data, null, 2));
 
         // Terminate the worker
         await worker.terminate();
