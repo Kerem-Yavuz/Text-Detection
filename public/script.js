@@ -104,9 +104,9 @@ function processImage(imageData) {
         }
         //detectAndDrawCircles(threshold);
 
-        /*cv.imshow("canvasOutput", threshold);
+        cv.imshow("canvasOutput", threshold);
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
-        performOCR(dataURL);*/
+        performOCR(dataURL);
 
         // Find contours
         cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
@@ -116,7 +116,7 @@ function processImage(imageData) {
         let send = 0;
         // Combine and draw contours for larger areas
         
-        for (let i = 0; i < contours.size(); ++i) {
+        /*for (let i = 0; i < contours.size(); ++i) {
             let cnt = contours.get(i);
             let rect = cv.boundingRect(cnt);
 
@@ -210,7 +210,7 @@ function processImage(imageData) {
                 
             }
             
-        }
+        }*/
 
         cv.imshow('canvasoutputrect', dst);
 
