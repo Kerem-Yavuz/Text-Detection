@@ -5,6 +5,7 @@ const { createWorker } = require('tesseract.js');
 const sharp = require('sharp'); // Ensure sharp is installed and required
 const app = express();
 const multer = require ('multer');
+let randomImgName;
 
 const uploadsDir = path.join(__dirname, 'uploads');
 
@@ -90,6 +91,9 @@ app.post('/performOCR', async (req, res) => {
         // Log the extracted data
         console.log(JSON.stringify(data, null, 2));
         
+        let jsonData = JSON.stringify(data, null, 2)
+        addToJson(jsonData);
+        
 
         // Terminate the worker
         await worker.terminate();
@@ -124,10 +128,10 @@ const imagesDir = path.join(__dirname, 'uploads/images/');
         }
       
         return result;
-      }
+    }
       
-      // 10 haneli rastgele string oluştur
-      const randomImgName = generateRandomString(10);
+    // 10 haneli rastgele string oluştur
+    randomImgName = generateRandomString(10);
 
     // Extract base64 data from the data URL
     const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
@@ -142,6 +146,46 @@ const imagesDir = path.join(__dirname, 'uploads/images/');
 
      res.redirect("/anasayfa");
     });
+
+    function addToJson(data) {
+        try {
+            // JSON formatında olduğundan emin olmak için kontrol et
+            if (typeof data === 'string') {
+                // JSON stringini parse et
+                let dataObject = JSON.parse(data);
+    
+                // `dataObject` bir nesne olduğundan emin ol
+                if (typeof dataObject === 'object' && !Array.isArray(dataObject)) {
+                    // Yeni veriyi tanımla
+                    let newData = {
+                        fileName: `${randomImgName}.png`,
+                    };
+    
+                    // Eğer `dataObject` içinde bir dizi bekleniyorsa, ekleyin
+                    // veya uygun bir alanı güncelleyin
+                    if (!dataObject.items) {
+                        dataObject.items = [];
+                    }
+                    dataObject.items.push(newData);
+    
+                    // Güncellenmiş veriyi JSON formatına dönüştür
+                    let newData2 = JSON.stringify(dataObject, null, 2);
+    
+                    // Veriyi 'data2.json' dosyasına yaz
+                    fs.writeFile("data2.json", newData2, (err) => {
+                        if (err) throw err;
+                        console.log("Yeni veri eklendi");
+                    });
+                } else {
+                    console.error("Veri bir nesne değil.");
+                }
+            } else {
+                console.error("Veri JSON stringi formatında değil.");
+            }
+        } catch (err) {
+            console.error("Bir hata oluştu: ", err);
+        }
+    }
 
 
 let port = 8001;
