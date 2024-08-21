@@ -76,11 +76,39 @@ function processImage(imageData) {
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
 
+        const cropCanvas = document.getElementById('canvasOutput');
+                const ctx = cropCanvas.getContext('2d');
+
+                // Example points array
+                let points = [
+                    {x: 812, y: 162},
+                    {x: 1212, y: 162},
+                    {x: 1212, y: 462},
+                    {x: 812, y: 462}
+                ];
+
+                // Calculate the crop area from the points
+                const cropX = Math.min(...points.map(p => p.x));
+                const cropY = Math.min(...points.map(p => p.y));
+                const cropWidth = Math.max(...points.map(p => p.x)) - cropX;
+                const cropHeight = Math.max(...points.map(p => p.y)) - cropY;
+
+                // Set canvas size to the crop size
+                cropCanvas.width = cropWidth;
+                cropCanvas.height = cropHeight;
+
+                // Draw the cropped area on the canvas
+                ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+                // Convert canvas to a data URL (base64) and send to server
+                const croppedImage = cropCanvas.toDataURL('image/png');
+                upload(croppedImage);
+
 
         cv.imshow("canvasOutput", src);
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
         performOCR(dataURL);
-        upload(dataURL);
+        //upload(dataURL);
 
         // Find contours
         cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
@@ -90,101 +118,7 @@ function processImage(imageData) {
         let send = 0;
         // Combine and draw contours for larger areas
         
-        for (let i = 0; i < contours.size(); ++i) {
-            let cnt = contours.get(i);
-            let rect = cv.boundingRect(cnt);
-
-            if(rect.width !== src.cols && rect.height !== src.rows)
-            {
-                // Filter contours based on size to avoid small text areas
-                if (rect.width > src.cols * 0.30  && rect.height > src.rows *0.30 ) { // Adjust these thresholds as needed
-
-                    // Approximate the contour to a polygon with fewer vertices
-                    let approx = new cv.Mat();
-                    cv.approxPolyDP(cnt, approx, 0.02 * cv.arcLength(cnt, true), true);
-
-                    if (approx.rows === 4) {  // If the contour has 4 points (corners)
-                        let points = [];
-                        for (let j = 0; j < 4; j++) {
-                            let corner = new cv.Point(approx.data32S[j * 2], approx.data32S[j * 2 + 1]);
-                            cv.circle(dst, corner, 5, new cv.Scalar(255, 0, 0), 20); // Draw the corners
-                            points.push([corner.x, corner.y]);
-                            console.log(`Corner ${j + 1}:`, corner);
-                        }
-                        orderPoints(points);
-                        // New Perspective Transformation
-                        let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
-                        let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
-                        calculateDimensions(points);
-                        // New Perspective Transformation
-                        window.input_pts.forEach((pt, i) => {
-                            input_pts.floatPtr(i)[0] = pt[0];
-                            input_pts.floatPtr(i)[1] = pt[1];
-                        });
-                        send++;
-                    
-                        output_pts.floatPtr(0)[0] = 0;
-                        output_pts.floatPtr(0)[1] = 0;
-                        output_pts.floatPtr(1)[0] = window.max_width;
-                        output_pts.floatPtr(1)[1] = 0;
-                        output_pts.floatPtr(2)[0] = window.max_width;
-                        output_pts.floatPtr(2)[1] = window.max_height;
-                        output_pts.floatPtr(3)[0] = 0;
-                        output_pts.floatPtr(3)[1] = window.max_height;
-                    
-
-                        let matrix = cv.getPerspectiveTransform(input_pts, output_pts);
-                        let warped = new cv.Mat();
-                        cv.warpPerspective(src, warped, matrix, new cv.Size(window.max_width, window.max_height), cv.INTER_LINEAR);
-                        console.log("warped");
-                        threshold = filter(warped);
-
-
-                        let canvasId = `canvasoutput${i}`;
-            
-            
-                        // Create a new canvas element
-                        let canvas2 = document.createElement('canvas');
-                        canvas2.id = canvasId;
-                        canvas2.width = threshold.cols;
-                        canvas2.height = threshold.rows;
-                        canvas2.classList = "outputs";
-                        
-                        document.body.appendChild(canvas2); // Append the canvas to the body (or any container you prefer)
-
-            
-
-                        // Display the image on the canvas
-                        cv.imshow(canvasId, threshold);
-
-                        // Convert canvas to data URL
-                        let canvasElement = document.getElementById(canvasId);
-                        let dataURL = canvasElement.toDataURL('image/png');
-
-                        //cv.imshow('canvasOutput', threshold);
-                        //let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
-                        if(send === 1)
-                        {
-                            console.log("sended to ocr");
-                            performOCR(dataURL);
-                            
-                        }
-                    
-                    
-                        // Clean up
-                        matrix.delete();
-                        warped.delete();
-                        input_pts.delete();
-                        output_pts.delete();
-                    }
-
-                    // Clean up the approximation matrix
-                    approx.delete();
-                }
-                
-            }
-            
-        }
+        
 
         cv.imshow('canvasoutputrect', dst);
 
