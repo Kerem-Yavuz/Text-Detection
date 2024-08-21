@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const { createWorker } = require('tesseract.js');
 const sharp = require('sharp'); // Ensure sharp is installed and required
 const app = express();
+const multer = require ('multer');
 
 const uploadsDir = path.join(__dirname, 'uploads');
 
@@ -102,6 +103,45 @@ app.post('/performOCR', async (req, res) => {
         res.status(500).send('Error processing image');
     }
 });
+
+const imagesDir = path.join(__dirname, 'uploads/images/');
+
+
+  // Yükleme işlemi için POST isteği
+  app.post('/upload',  (req, res) => {
+    const { imgData } = req.body;
+
+    function generateRandomString(length) {
+        // Kullanılacak karakterler: büyük ve küçük harfler, rakamlar
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+      
+        // Belirtilen uzunluk kadar döngü
+        for (let i = 0; i < length; i++) {
+          // Rastgele bir karakter seç
+          const randomIndex = Math.floor(Math.random() * characters.length);
+          result += characters[randomIndex];
+        }
+      
+        return result;
+      }
+      
+      // 10 haneli rastgele string oluştur
+      const randomImgName = generateRandomString(10);
+
+    // Extract base64 data from the data URL
+    const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
+
+    const imagePath = path.join(imagesDir, `${randomImgName}.png`);
+
+    // Ensure the uploads directory exists
+     fs.mkdir(imagesDir, { recursive: true });
+
+    // Convert base64 data to an image file using sharp
+     sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
+
+     res.redirect("/anasayfa");
+    });
 
 
 let port = 8001;

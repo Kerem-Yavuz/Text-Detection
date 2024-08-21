@@ -76,37 +76,11 @@ function processImage(imageData) {
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
 
-        function detectAndDrawCircles(src) {
-            // Convert to grayscale if needed
-            // Apply HoughCircles
-            let circles = new cv.Mat();
-            cv.HoughCircles(src, circles, cv.HOUGH_GRADIENT, 1, 20, 50, 30, 0, 0);
-        
-            // Convert to uint16 and round
-            let circlesArray = circles.data32F;
-            let numCircles = circles.rows;
-        
-            // Draw circles
-            for (let i = 0; i < numCircles; i++) {
-                let x = Math.round(circlesArray[i * 3]);
-                let y = Math.round(circlesArray[i * 3 + 1]);
-                let radius = Math.round(circlesArray[i * 3 + 2]);
-        
-                // Draw the outer circle
-                cv.circle(src, new cv.Point(x, y), radius, new cv.Scalar(0, 255, 0), 2);
-        
-                // Draw the center of the circle
-                cv.circle(src, new cv.Point(x, y), 2, new cv.Scalar(0, 0, 255), 3);
-            }
-        
-            // Clean up
-            circles.delete();
-        }
-        //detectAndDrawCircles(threshold);
 
-        cv.imshow("canvasOutput", threshold);
+        cv.imshow("canvasOutput", src);
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
         performOCR(dataURL);
+        upload(dataURL);
 
         // Find contours
         cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
@@ -116,7 +90,7 @@ function processImage(imageData) {
         let send = 0;
         // Combine and draw contours for larger areas
         
-        /*for (let i = 0; i < contours.size(); ++i) {
+        for (let i = 0; i < contours.size(); ++i) {
             let cnt = contours.get(i);
             let rect = cv.boundingRect(cnt);
 
@@ -210,7 +184,7 @@ function processImage(imageData) {
                 
             }
             
-        }*/
+        }
 
         cv.imshow('canvasoutputrect', dst);
 
@@ -311,4 +285,19 @@ function performOCR(imgData) {
     .catch(error => {
         console.error('Error:', error);
     });
+}
+
+
+function upload(imgData) {
+    fetch('/upload', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imgData }) // Ensure imgData is a string
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+    
 }
