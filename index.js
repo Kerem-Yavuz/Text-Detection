@@ -13,6 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public/data')));
 
 app.get('/anasayfa', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -72,7 +73,7 @@ app.post('/performOCR', async (req, res) => {
         const patterns = {
             tckimlikno: /t\.?c\.?\s*kimlik\s*no\s*[:\s]*(\d{11})/i, // T.C. Kimlik No - 11 haneli
             ad: /ad[iı]\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i,
-            soyad: /soy[aı]s?\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i,
+            soyad: /soyadı\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ]+)/i,
             ogrencino: /öğrenci\s*no\s*[:\s]*(\d{8})/i, // Öğrenci No - 8 haneli
             fakulte: /fak\.\s*\/?\s*ens\.\s*\/?\s*yo\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ\s\.]+)/i,
             bolum: /bölüm\s*\/\s*program\s*[:\s]*([\wşŞçÇğĞıİöÖüÜ\s]+)/i
@@ -88,6 +89,7 @@ app.post('/performOCR', async (req, res) => {
         
         // Log the extracted data
         console.log(JSON.stringify(data, null, 2));
+
         
 
         // Terminate the worker

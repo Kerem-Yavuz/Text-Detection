@@ -3,9 +3,11 @@
 <head>
     <meta charset="utf-8">
     <title>Text Detection and Recognition</title>
-    <script async src="opencv.js" type="text/javascript"></script>
-    <script src="tesseract.js"></script>
+    <script async src="prebuild/opencv.js" type="text/javascript"></script>
+    <script src="prebuild/tesseract.js"></script>
+    <script async src="prebuild/utils.js" type="text/javascript"></script>
     <script src="script.js" defer></script>
+    
 </head>
 <body>
 <h2>Text Detection and Recognition</h2>
@@ -16,7 +18,11 @@
     <input type="button" onclick="reset()" value="reset">
     <canvas id="canvasOutput" ></canvas>
     <canvas id="canvasoutputrect"></canvas>
+    <canvas id="outputFace"></canvas>
 </div>
 <p id = "detectedText" style="font-size: 20px;">Text</p>
+<script type="text/JavaScript">
+    
+    </script>
 </body>
 </html>
