@@ -43,9 +43,13 @@ function detectFace() {
             // Draw rectangles around the detected faces
             for (let i = 0; i < faces.size(); ++i) {
                 let face = faces.get(i);
+
+                if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
+                {
                 let point1 = new cv.Point(face.x-30, face.y-50);
                 let point2 = new cv.Point(face.x + face.width+30, face.y + face.height+30);
-                cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
+                cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
+                }
             }
 
             // Display the result on the canvas
@@ -90,8 +94,16 @@ function reset()
     imgElement.src = '';
     inputElement.value = '';
     points = [];
-    canvas.width = 0;
-    canvas.height = 0;
+
+    document.getElementById("outputFace").remove();
+
+    let faceCanvas = document.createElement('canvas');
+    faceCanvas.id = "outputFace";
+    faceCanvas.width = 0;
+    faceCanvas.height = 0;
+    faceCanvas.style.display = "block";
+    document.body.appendChild(faceCanvas);
+    
 
     document.getElementById("canvasoutputrect").remove();
 
