@@ -5,9 +5,10 @@ const { createWorker } = require('tesseract.js');
 const sharp = require('sharp'); // Ensure sharp is installed and required
 const app = express();
 const multer = require ('multer');
-let randomImgName;
+
 
 const uploadsDir = path.join(__dirname, 'uploads');
+const uploadImagesDir = path.join(__dirname, 'uploads','images');
 
 
 app.use(express.json({ limit: '50mb' })); // Increase the limit if needed
@@ -16,6 +17,22 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'public/data')));
+app.use('/uploads/images', express.static(uploadImagesDir));
+
+app.get('/getImages', async (req, res) => { // Changed
+    try {
+        const files = await fs.readdir(uploadImagesDir);
+        const images = files.filter(file => /\.(jpg|jpeg|png|webp)$/i.test(file));
+
+        let imageHTML = images.map(image => `<img src="/uploads/images/${image}" alt="${image}" style="width:150px; margin:10px;">`).join('');
+        imageHTML = `<html><body>${imageHTML}</body></html>`;
+
+        res.send(imageHTML);
+    } catch (err) {
+        console.error('Error reading images directory:', err);
+        res.status(500).send('Error reading images directory');
+    }
+});
 
 app.get('/anasayfa', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -24,7 +41,7 @@ app.get('/anasayfa', (req, res) => {
 app.get('/', (req, res) => {
     res.redirect('/anasayfa');
 });
-
+let randomImgName;
 
 app.post('/performOCR', async (req, res) => {
     try {
@@ -92,7 +109,10 @@ app.post('/performOCR', async (req, res) => {
         // Log the extracted data
         console.log(JSON.stringify(data, null, 2));
 
-        addToJson(JSON.stringify(data, null, 2));
+        randomImgName = generateRandomString(10);//create global name for the image
+        
+        addToJson(JSON.stringify(data, null, 2));//add the name of the image to the json file
+        
         
 
         // Terminate the worker
@@ -108,43 +128,41 @@ app.post('/performOCR', async (req, res) => {
     }
 });
 
+function generateRandomString(length) {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        const randomIndex = Math.floor(Math.random() * characters.length);
+        result += characters[randomIndex];
+    }
+    return result;
+}
+
 const imagesDir = path.join(__dirname, 'uploads/images/');
 
 
 
-app.post('/upload',  (req, res) => {
-    const { imgData } = req.body;
+app.post('/upload', async (req, res) => {
+    try {
+        const { imgData } = req.body;
 
-    function generateRandomString(length) {
-        // Char List for generation
-        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-      
-        // Belirtilen uzunluk kadar döngü
-        for (let i = 0; i < length; i++) {
-          // Rastgele bir karakter seç
-          const randomIndex = Math.floor(Math.random() * characters.length);
-          result += characters[randomIndex];
-        }
-      
-        return result;
+
+        // Extract base64 data from the data URL
+        const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
+
+        const imagePath = path.join(imagesDir, `${randomImgName}.png`);
+
+        // Ensure the uploads directory exists
+        await fs.mkdir(imagesDir, { recursive: true });
+
+        // Convert base64 data to an image file using sharp
+        await sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
+
+        res.redirect("/anasayfa");
+    } catch (error) {
+        console.error('Error processing image upload:', error);
+        res.status(500).send('An error occurred while processing your request.');
     }
-      
-    // Generate Random String
-    randomImgName = generateRandomString(10);
-
-    // Extract base64 data from the data URL
-    const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
-
-    const imagePath = path.join(imagesDir, `${randomImgName}.png`);
-
-    // Ensure the uploads directory exists
-    fs.mkdir(imagesDir, { recursive: true });
-
-    // Convert base64 data to an image file using sharp
-    sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
-
-    res.redirect("/anasayfa");
 });
 
 function addToJson(data) {
@@ -162,11 +180,11 @@ function addToJson(data) {
     
                 Object.assign(dataObject,newData);
     
-                // Güncellenmiş veriyi JSON formatına dönüştür
-                let newData2 = JSON.stringify(dataObject, null, 2);
+                // write the updated json into newjson
+                let newJson = JSON.stringify(dataObject, null, 2);
     
-                // Veriyi 'data2.json' dosyasına yaz
-                fs.writeFile("data2.json", newData2, (err) => {
+                // write the newJson into to the data.json file
+                fs.writeFile("data.json", newJson, (err) => {
                     if (err) throw err;
                     console.log("newData added");
                    });

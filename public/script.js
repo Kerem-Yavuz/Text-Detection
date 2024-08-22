@@ -7,63 +7,7 @@ const maxPoints = 4;
 let originalImageData = null; // To store the original image data for OpenCV processing
 
 
-function detectFace() {
-    
-        var faceCanvas = document.getElementById("outputFace"); // faceCanvas is the id of faceCanvas tag
 
-        // Load the image from the canvas
-        var src = cv.imread(faceCanvas);
-        var dst = new cv.Mat();
-        var gray = new cv.Mat();
-        var faces = new cv.RectVector();
-        var classifier = new cv.CascadeClassifier();
-        var utils = new Utils('errorMessage');
-        var faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
-
-        // Load the classifier
-        utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
-            classifier.load(faceCascadeFile); // Load the cascade from file 
-
-            // Process the image after the cascade has been loaded
-            processfaceCanvas();
-        });
-
-        function processfaceCanvas() {
-            // Convert the image to grayscale
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-
-            try {
-                // Detect faces
-                classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
-                console.log(faces.size());
-            } catch (err) {
-                console.log(err);
-            }
-
-            // Draw rectangles around the detected faces
-            for (let i = 0; i < faces.size(); ++i) {
-                let face = faces.get(i);
-
-                if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
-                {
-                let point1 = new cv.Point(face.x-30, face.y-50);
-                let point2 = new cv.Point(face.x + face.width+30, face.y + face.height+30);
-                cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
-                }
-            }
-
-            // Display the result on the canvas
-            cv.imshow("outputFace", src);
-
-            // Clean up
-            src.delete();
-            dst.delete();
-            gray.delete();
-            faces.delete();
-            classifier.delete();
-        }
-    
-}
 
 
 
@@ -140,46 +84,118 @@ function processImage(imageData) {
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
 
+
+        function detectFace() {
+    
+            var faceCanvas = document.getElementById("outputFace"); // faceCanvas is the id of faceCanvas tag
+    
+            // Load the image from the canvas
+            var src = cv.imread(faceCanvas);
+            var dst = new cv.Mat();
+            var gray = new cv.Mat();
+            var faces = new cv.RectVector();
+            var classifier = new cv.CascadeClassifier();
+            var utils = new Utils('errorMessage');
+            var faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
+    
+            // Load the classifier
+            utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
+                classifier.load(faceCascadeFile); // Load the cascade from file 
+    
+                // Process the image after the cascade has been loaded
+                processfaceCanvas();
+            });
+    
+            async function processfaceCanvas() {
+                let foundedFaces= 0;
+                // Convert the image to grayscale
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+    
+                try {
+                    // Detect faces
+                    classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
+                    
+                } catch (err) {
+                    console.log(err);
+                }
+    
+                // Draw rectangles around the detected faces
+                for (let i = 0; i < faces.size(); ++i) {
+                    let face = faces.get(i);
+                    
+                    if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
+                    {
+                        foundedFaces++;
+                    let point1 = new cv.Point(face.x-30, face.y-50);
+                    let point2 = new cv.Point(face.x + face.width+30, face.y + face.height+30);
+                    let point3 = new cv.Point(face.x-30, face.y+ face.height+30);
+                    let point4 = new cv.Point(face.x + face.width+30, face.y-50);
+                    points =
+                    [
+                        point1,
+                        point2,
+                        point3,
+                        point4
+                    ];
+                    console.log(points);
+                    orderPoints(points);
+                    await cropImage();
+                    cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
+                    }
+                }
+                if(foundedFaces === 0)
+                {
+                    console.error("no faces found");
+                }
+    
+                // Display the result on the canvas
+                cv.imshow("outputFace", src);
+    
+                // Clean up
+                src.delete();
+                dst.delete();
+                gray.delete();
+                faces.delete();
+                classifier.delete();
+            }
+        
+        }
+
         cv.imshow("outputFace", src);//output into outputFace so that detectFace function can get it from there
         detectFace();
 
+        async function cropImage()
+        {
+            const cropCanvas = document.getElementById('canvasOutput');
+            const ctx = cropCanvas.getContext('2d');
 
-        const cropCanvas = document.getElementById('canvasOutput');
-        const ctx = cropCanvas.getContext('2d');
+            // Calculate the crop area from the points
+            const cropX = Math.min(...points.map(p => p.x));
+            const cropY = Math.min(...points.map(p => p.y));
+            const cropWidth = Math.max(...points.map(p => p.x)) - cropX;
+            const cropHeight = Math.max(...points.map(p => p.y)) - cropY;
 
-        // Example points array
-        let points = [
-            {x: 812, y: 162},
-            {x: 1212, y: 162},
-            {x: 1212, y: 462},
-            {x: 812, y: 462}
-        ];
+            // Set canvas size to the crop size
+            cropCanvas.width = cropWidth;
+            cropCanvas.height = cropHeight;
 
-        // Calculate the crop area from the points
-        const cropX = Math.min(...points.map(p => p.x));
-        const cropY = Math.min(...points.map(p => p.y));
-        const cropWidth = Math.max(...points.map(p => p.x)) - cropX;
-        const cropHeight = Math.max(...points.map(p => p.y)) - cropY;
+            // Draw the cropped area on the canvas
+            ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-        // Set canvas size to the crop size
-        cropCanvas.width = cropWidth;
-        cropCanvas.height = cropHeight;
+            // Detect the image format
+            const originalFormat = img.src.split(';')[0].split('/')[1];  // Extract the format from the image source
+            const validFormats = ['png', 'jpeg', 'jpg', 'webp']; // Add more formats if needed
 
-        // Draw the cropped area on the canvas
-        ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            let format = 'png'; // Default format
+            if (validFormats.includes(originalFormat)) {
+                format = originalFormat;
+            }
 
-        // Convert canvas to a data URL (base64) and send to server
-        const croppedImage = cropCanvas.toDataURL('image/png');
-        upload(croppedImage);
-
-
-        cv.imshow("canvasOutput", src);
-
-        
-        
-        
-        
-
+            // Convert canvas to a data URL (base64) and send to server
+            const croppedImage = cropCanvas.toDataURL(`image/${format}`);
+            await upload(croppedImage);
+        }
+    
         cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
 
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
@@ -283,8 +299,8 @@ function performOCR(imgData) {
 }
 
 
-function upload(imgData) {
-    fetch('/upload', {
+async function upload(imgData) {
+    await fetch('/upload', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
