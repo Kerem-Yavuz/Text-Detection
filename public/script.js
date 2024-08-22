@@ -140,6 +140,38 @@ function processImage(imageData) {
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
 
+
+        const cropCanvas = document.getElementById('canvasOutput');
+                const ctx = cropCanvas.getContext('2d');
+
+                // Example points array
+                let points = [
+                    {x: 812, y: 162},
+                    {x: 1212, y: 162},
+                    {x: 1212, y: 462},
+                    {x: 812, y: 462}
+                ];
+
+                // Calculate the crop area from the points
+                const cropX = Math.min(...points.map(p => p.x));
+                const cropY = Math.min(...points.map(p => p.y));
+                const cropWidth = Math.max(...points.map(p => p.x)) - cropX;
+                const cropHeight = Math.max(...points.map(p => p.y)) - cropY;
+
+                // Set canvas size to the crop size
+                cropCanvas.width = cropWidth;
+                cropCanvas.height = cropHeight;
+
+                // Draw the cropped area on the canvas
+                ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+                // Convert canvas to a data URL (base64) and send to server
+                const croppedImage = cropCanvas.toDataURL('image/png');
+                upload(croppedImage);
+
+
+        cv.imshow("canvasOutput", src);
+
         
         
         
@@ -147,8 +179,10 @@ function processImage(imageData) {
         detectFace();
 
         cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
+
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
         performOCR(dataURL);
+        //upload(dataURL);
 
         // Clean up
         src.delete();
@@ -244,4 +278,19 @@ function performOCR(imgData) {
     .catch(error => {
         console.error('Error:', error);
     });
+}
+
+
+function upload(imgData) {
+    fetch('/upload', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imgData }) // Ensure imgData is a string
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+    
 }

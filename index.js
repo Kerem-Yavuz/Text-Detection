@@ -4,6 +4,8 @@ const fs = require('fs').promises;
 const { createWorker } = require('tesseract.js');
 const sharp = require('sharp'); // Ensure sharp is installed and required
 const app = express();
+const multer = require ('multer');
+let randomImgName;
 
 const uploadsDir = path.join(__dirname, 'uploads');
 
@@ -91,6 +93,9 @@ app.post('/performOCR', async (req, res) => {
         console.log(JSON.stringify(data, null, 2));
 
         
+        let jsonData = JSON.stringify(data, null, 2)
+        addToJson(jsonData);
+        
 
         // Terminate the worker
         await worker.terminate();
@@ -104,6 +109,85 @@ app.post('/performOCR', async (req, res) => {
         res.status(500).send('Error processing image');
     }
 });
+
+const imagesDir = path.join(__dirname, 'uploads/images/');
+
+
+  // Yükleme işlemi için POST isteği
+  app.post('/upload',  (req, res) => {
+    const { imgData } = req.body;
+
+    function generateRandomString(length) {
+        // Kullanılacak karakterler: büyük ve küçük harfler, rakamlar
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+      
+        // Belirtilen uzunluk kadar döngü
+        for (let i = 0; i < length; i++) {
+          // Rastgele bir karakter seç
+          const randomIndex = Math.floor(Math.random() * characters.length);
+          result += characters[randomIndex];
+        }
+      
+        return result;
+    }
+      
+    // 10 haneli rastgele string oluştur
+    randomImgName = generateRandomString(10);
+
+    // Extract base64 data from the data URL
+    const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
+
+    const imagePath = path.join(imagesDir, `${randomImgName}.png`);
+
+    // Ensure the uploads directory exists
+     fs.mkdir(imagesDir, { recursive: true });
+
+    // Convert base64 data to an image file using sharp
+     sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
+
+     res.redirect("/anasayfa");
+    });
+
+    function addToJson(data) {
+        try {
+            // JSON formatında olduğundan emin olmak için kontrol et
+            if (typeof data === 'string') {
+                // JSON stringini parse et
+                let dataObject = JSON.parse(data);
+    
+                // `dataObject` bir nesne olduğundan emin ol
+                if (typeof dataObject === 'object' && !Array.isArray(dataObject)) {
+                    // Yeni veriyi tanımla
+                    let newData = {
+                        fileName: `${randomImgName}.png`,
+                    };
+    
+                    // Eğer `dataObject` içinde bir dizi bekleniyorsa, ekleyin
+                    // veya uygun bir alanı güncelleyin
+                    if (!dataObject.items) {
+                        dataObject.items = [];
+                    }
+                    dataObject.items.push(newData);
+    
+                    // Güncellenmiş veriyi JSON formatına dönüştür
+                    let newData2 = JSON.stringify(dataObject, null, 2);
+    
+                    // Veriyi 'data2.json' dosyasına yaz
+                    fs.writeFile("data2.json", newData2, (err) => {
+                        if (err) throw err;
+                        console.log("Yeni veri eklendi");
+                    });
+                } else {
+                    console.error("Veri bir nesne değil.");
+                }
+            } else {
+                console.error("Veri JSON stringi formatında değil.");
+            }
+        } catch (err) {
+            console.error("Bir hata oluştu: ", err);
+        }
+    }
 
 
 let port = 8001;
