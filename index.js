@@ -34,22 +34,22 @@ app.post('/performOCR', async (req, res) => {
 
         const { imgData } = req.body;
 
-        // Extract base64 data from the data URL
+        
         const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
 
-        const imagePath = path.join(uploadsDir, 'temp.png');
+        const imagePath = path.join(uploadsDir, 'temp.png');//create temporary image
 
-        // Ensure the uploads directory exists
+        
         await fs.mkdir(uploadsDir, { recursive: true });
 
-        // Convert base64 data to an image file using sharp
+        
         await sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
 
-        // Create a Tesseract worker
+        
         const worker = await createWorker();
 
         
-        await worker.setParameters({
+        await worker.setParameters({// whitelist of chars that we want to see in our ocr result
             //tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzçğıöşüÇĞİÖŞÜ1234567890'
         });
 
@@ -92,9 +92,7 @@ app.post('/performOCR', async (req, res) => {
         // Log the extracted data
         console.log(JSON.stringify(data, null, 2));
 
-        
-        let jsonData = JSON.stringify(data, null, 2)
-        addToJson(jsonData);
+        addToJson(JSON.stringify(data, null, 2));
         
 
         // Terminate the worker
@@ -113,12 +111,12 @@ app.post('/performOCR', async (req, res) => {
 const imagesDir = path.join(__dirname, 'uploads/images/');
 
 
-  // Yükleme işlemi için POST isteği
-  app.post('/upload',  (req, res) => {
+
+app.post('/upload',  (req, res) => {
     const { imgData } = req.body;
 
     function generateRandomString(length) {
-        // Kullanılacak karakterler: büyük ve küçük harfler, rakamlar
+        // Char List for generation
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         let result = '';
       
@@ -132,7 +130,7 @@ const imagesDir = path.join(__dirname, 'uploads/images/');
         return result;
     }
       
-    // 10 haneli rastgele string oluştur
+    // Generate Random String
     randomImgName = generateRandomString(10);
 
     // Extract base64 data from the data URL
@@ -141,53 +139,41 @@ const imagesDir = path.join(__dirname, 'uploads/images/');
     const imagePath = path.join(imagesDir, `${randomImgName}.png`);
 
     // Ensure the uploads directory exists
-     fs.mkdir(imagesDir, { recursive: true });
+    fs.mkdir(imagesDir, { recursive: true });
 
     // Convert base64 data to an image file using sharp
-     sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
+    sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
 
-     res.redirect("/anasayfa");
-    });
+    res.redirect("/anasayfa");
+});
 
-    function addToJson(data) {
-        try {
-            // JSON formatında olduğundan emin olmak için kontrol et
-            if (typeof data === 'string') {
-                // JSON stringini parse et
-                let dataObject = JSON.parse(data);
+function addToJson(data) {
+        
+        if (typeof data === 'string') {
+            //Parses Json String
+            let dataObject = JSON.parse(data);
+
+            // Check dataObject
+            if (typeof dataObject === 'object' && !Array.isArray(dataObject)) {
+                //Assigns new Data
+                let newData = {
+                    fileName: `${randomImgName}.png`,
+                };
     
-                // `dataObject` bir nesne olduğundan emin ol
-                if (typeof dataObject === 'object' && !Array.isArray(dataObject)) {
-                    // Yeni veriyi tanımla
-                    let newData = {
-                        fileName: `${randomImgName}.png`,
-                    };
+                Object.assign(dataObject,newData);
     
-                    // Eğer `dataObject` içinde bir dizi bekleniyorsa, ekleyin
-                    // veya uygun bir alanı güncelleyin
-                    if (!dataObject.items) {
-                        dataObject.items = [];
-                    }
-                    dataObject.items.push(newData);
+                // Güncellenmiş veriyi JSON formatına dönüştür
+                let newData2 = JSON.stringify(dataObject, null, 2);
     
-                    // Güncellenmiş veriyi JSON formatına dönüştür
-                    let newData2 = JSON.stringify(dataObject, null, 2);
-    
-                    // Veriyi 'data2.json' dosyasına yaz
-                    fs.writeFile("data2.json", newData2, (err) => {
-                        if (err) throw err;
-                        console.log("Yeni veri eklendi");
-                    });
-                } else {
-                    console.error("Veri bir nesne değil.");
-                }
-            } else {
-                console.error("Veri JSON stringi formatında değil.");
-            }
-        } catch (err) {
-            console.error("Bir hata oluştu: ", err);
-        }
-    }
+                // Veriyi 'data2.json' dosyasına yaz
+                fs.writeFile("data2.json", newData2, (err) => {
+                    if (err) throw err;
+                    console.log("newData added");
+                   });
+            } 
+
+        } 
+}
 
 
 let port = 8001;
