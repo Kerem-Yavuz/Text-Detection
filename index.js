@@ -4,11 +4,11 @@ const fs = require('fs').promises;
 const { createWorker } = require('tesseract.js');
 const sharp = require('sharp'); // Ensure sharp is installed and required
 const app = express();
-const multer = require ('multer');
 
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadImagesDir = path.join(__dirname, 'uploads','images');
+let randomImgName;
 
 
 app.use(express.json({ limit: '50mb' })); // Increase the limit if needed
@@ -35,13 +35,15 @@ app.get('/getImages', async (req, res) => { // Changed
 });
 
 app.get('/anasayfa', (req, res) => {
+    
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/', (req, res) => {
+    
     res.redirect('/anasayfa');
 });
-let randomImgName;
+
 
 app.post('/performOCR', async (req, res) => {
     try {
@@ -108,9 +110,9 @@ app.post('/performOCR', async (req, res) => {
         
         // Log the extracted data
         console.log(JSON.stringify(data, null, 2));
-
+    
         randomImgName = generateRandomString(10);//create global name for the image
-        
+
         addToJson(JSON.stringify(data, null, 2));//add the name of the image to the json file
         
         
@@ -129,7 +131,7 @@ app.post('/performOCR', async (req, res) => {
 });
 
 function generateRandomString(length) {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';// list of char that will be used in name
     let result = '';
     for (let i = 0; i < length; i++) {
         const randomIndex = Math.floor(Math.random() * characters.length);
@@ -142,11 +144,16 @@ const imagesDir = path.join(__dirname, 'uploads/images/');
 
 
 
-app.post('/upload', async (req, res) => {
+app.post('/upload', async (req, res) => {    
     try {
         const { imgData } = req.body;
 
-
+        console.log(randomImgName);
+        if(randomImgName === undefined)//i dont know but when i restart node index.js it calls this upload function
+            return;                    //when it calls at the start without image upload randomImgName will be undefined 
+                                        //and it creates undefined.png with the image that is in the not reloaded page
+                                        //so this prevents that
+        
         // Extract base64 data from the data URL
         const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
 
@@ -158,7 +165,6 @@ app.post('/upload', async (req, res) => {
         // Convert base64 data to an image file using sharp
         await sharp(Buffer.from(base64Data, 'base64')).toFile(imagePath);
 
-        res.redirect("/anasayfa");
     } catch (error) {
         console.error('Error processing image upload:', error);
         res.status(500).send('An error occurred while processing your request.');

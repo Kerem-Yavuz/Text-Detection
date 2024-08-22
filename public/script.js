@@ -32,39 +32,8 @@ inputElement.addEventListener("change", (e) => {
 }, false);
 function reset()
 {   
-    canvas.width = 0;
-    canvas.height = 0;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    imgElement.src = '';
-    inputElement.value = '';
-    points = [];
-
-    document.getElementById("outputFace").remove();
-
-    let faceCanvas = document.createElement('canvas');
-    faceCanvas.id = "outputFace";
-    faceCanvas.width = 0;
-    faceCanvas.height = 0;
-    faceCanvas.style.display = "block";
-    document.body.appendChild(faceCanvas);
-    
-
-    document.getElementById("canvasoutputrect").remove();
-
-    let canvasdots = document.createElement('canvas');
-    canvasdots.id = "canvasoutputrect";
-    canvasdots.width = 0;
-    canvasdots.height = 0;
-    canvasdots.style.display = "none";
-    document.body.appendChild(canvasdots);
-
-    let outputs = document.getElementsByClassName("outputs");
-    while(outputs.length > 0){
-        outputs[0].parentNode.removeChild(outputs[0]);
-    }
-    document.getElementById("detectedText").textContent = "Text";
-
-    console.log("reseted");
+    location.reload();
+    console.log('reset');
 }
 
 document.addEventListener('keydown', function(event) {
@@ -73,16 +42,20 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-
+let croppedImage;
 function processImage(imageData) {
     let img = new Image();
-    img.onload = function() {
+    img.onload = async function() {
         let src = cv.imread(img);
         let threshold = new cv.Mat();
         
 
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
+        cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
+
+        let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
+        await performOCR(dataURL);
 
 
         function detectFace() {
@@ -139,7 +112,7 @@ function processImage(imageData) {
                     ];
                     console.log(points);
                     orderPoints(points);
-                    await cropImage();
+                    cropImage();
                     cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
                     }
                 }
@@ -158,7 +131,6 @@ function processImage(imageData) {
                 faces.delete();
                 classifier.delete();
             }
-        
         }
 
         cv.imshow("outputFace", src);//output into outputFace so that detectFace function can get it from there
@@ -196,10 +168,7 @@ function processImage(imageData) {
             await upload(croppedImage);
         }
     
-        cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
 
-        let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
-        performOCR(dataURL);
         //upload(dataURL);
 
         // Clean up
@@ -280,8 +249,8 @@ function calculateDimensions(points) {
 }
 
 
-function performOCR(imgData) {
-    fetch('/performOCR', {
+async function performOCR(imgData) {
+    await fetch('/performOCR', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
