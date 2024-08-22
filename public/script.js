@@ -7,6 +7,65 @@ const maxPoints = 4;
 let originalImageData = null; // To store the original image data for OpenCV processing
 
 
+function detectFace() {
+    
+        var faceCanvas = document.getElementById("outputFace"); // faceCanvas is the id of faceCanvas tag
+
+        // Load the image from the canvas
+        var src = cv.imread(faceCanvas);
+        var dst = new cv.Mat();
+        var gray = new cv.Mat();
+        var faces = new cv.RectVector();
+        var classifier = new cv.CascadeClassifier();
+        var utils = new Utils('errorMessage');
+        var faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
+
+        // Load the classifier
+        utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
+            classifier.load(faceCascadeFile); // Load the cascade from file 
+
+            // Process the image after the cascade has been loaded
+            processfaceCanvas();
+        });
+
+        function processfaceCanvas() {
+            // Convert the image to grayscale
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+            try {
+                // Detect faces
+                classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
+                console.log(faces.size());
+            } catch (err) {
+                console.log(err);
+            }
+
+            // Draw rectangles around the detected faces
+            for (let i = 0; i < faces.size(); ++i) {
+                let face = faces.get(i);
+
+                if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
+                {
+                let point1 = new cv.Point(face.x-30, face.y-50);
+                let point2 = new cv.Point(face.x + face.width+30, face.y + face.height+30);
+                cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
+                }
+            }
+
+            // Display the result on the canvas
+            cv.imshow("outputFace", src);
+
+            // Clean up
+            src.delete();
+            dst.delete();
+            gray.delete();
+            faces.delete();
+            classifier.delete();
+        }
+    
+}
+
+
 
 inputElement.addEventListener("change", (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
@@ -35,8 +94,16 @@ function reset()
     imgElement.src = '';
     inputElement.value = '';
     points = [];
-    canvas.width = 0;
-    canvas.height = 0;
+
+    document.getElementById("outputFace").remove();
+
+    let faceCanvas = document.createElement('canvas');
+    faceCanvas.id = "outputFace";
+    faceCanvas.width = 0;
+    faceCanvas.height = 0;
+    faceCanvas.style.display = "block";
+    document.body.appendChild(faceCanvas);
+    
 
     document.getElementById("canvasoutputrect").remove();
 
@@ -67,14 +134,12 @@ function processImage(imageData) {
     let img = new Image();
     img.onload = function() {
         let src = cv.imread(img);
-        
         let threshold = new cv.Mat();
-        let contours = new cv.MatVector();
-        let hierarchy = new cv.Mat();
         
 
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
+
 
         const cropCanvas = document.getElementById('canvasOutput');
                 const ctx = cropCanvas.getContext('2d');
@@ -106,28 +171,22 @@ function processImage(imageData) {
 
 
         cv.imshow("canvasOutput", src);
+
+        
+        
+        
+        cv.imshow("outputFace", src);//output into outputFace so that detectFace function can get it from there
+        detectFace();
+
+        cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
+
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
         performOCR(dataURL);
         //upload(dataURL);
 
-        // Find contours
-        cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
-        console.log("contours applied");
-        // Initialize the output image
-        let dst = new cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-        let send = 0;
-        // Combine and draw contours for larger areas
-        
-        
-
-        cv.imshow('canvasoutputrect', dst);
-
         // Clean up
         src.delete();
         threshold.delete();
-        contours.delete();
-        hierarchy.delete();
-        dst.delete();
     };
     img.src = imageData;
 }
@@ -140,7 +199,7 @@ function filter(input)
     cv.cvtColor(input, gray, cv.COLOR_RGB2GRAY, 0);
 
         // Apply binary thresholding
-    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 51,13);
+    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 51,15);
     return threshold;
 }
 
