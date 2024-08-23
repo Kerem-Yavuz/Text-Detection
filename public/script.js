@@ -53,6 +53,7 @@ function processImage(imageData) {
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
         cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
+        cv.imshow("canvasoutputrect", threshold);
 
         let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
         await performOCR(dataURL);
@@ -99,21 +100,37 @@ function processImage(imageData) {
                     if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
                     {
                         foundedFaces++;
-                    let point1 = new cv.Point(face.x-30, face.y-50);
-                    let point2 = new cv.Point(face.x + face.width+30, face.y + face.height+30);
-                    let point3 = new cv.Point(face.x-30, face.y+ face.height+30);
-                    let point4 = new cv.Point(face.x + face.width+30, face.y-50);
-                    points =
-                    [
-                        point1,
-                        point2,
-                        point3,
-                        point4
-                    ];
-                    console.log(points);
-                    orderPoints(points);
-                    cropImage();
-                    cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
+
+                        let point1; 
+                        let point2;
+                        let point3;
+                        let point4;
+                        if(src.cols>src.rows)// for checking if the image is in portrait or landscape so that cropped image will be more accurate
+                        {
+                            point1 = new cv.Point(face.x-src.rows * 0.03, face.y-src.rows * 0.03);
+                            point2 = new cv.Point(face.x + face.width+src.rows * 0.03, face.y + face.height+src.rows * 0.03);
+                            point3 = new cv.Point(face.x-src.rows *0.03, face.y+ face.height+src.rows * 0.03);
+                            point4 = new cv.Point(face.x + face.width+src.rows * 0.03, face.y-src.rows * 0.03);
+                        }
+                        else
+                        {
+                            point1 = new cv.Point(face.x-src.cols * 0.03, face.y-src.cols * 0.03);
+                            point2 = new cv.Point(face.x + face.width+src.cols * 0.03, face.y + face.height+src.cols * 0.03);
+                            point3 = new cv.Point(face.x-src.cols *0.03, face.y+ face.height+src.cols * 0.03);
+                            point4 = new cv.Point(face.x + face.width+src.cols * 0.03, face.y-src.cols * 0.03);
+                        }
+
+                        points =
+                        [
+                            point1,
+                            point2,
+                            point3,
+                            point4
+                        ];
+                        console.log(points);
+                        orderPoints(points);
+                        cropImage();
+                        cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
                     }
                 }
                 if(foundedFaces === 0)
@@ -186,7 +203,7 @@ function filter(input)
     cv.cvtColor(input, gray, cv.COLOR_RGB2GRAY, 0);
 
         // Apply binary thresholding
-    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 51,15);
+    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 63,17);
     return threshold;
 }
 
