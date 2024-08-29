@@ -6,9 +6,15 @@ let points = [];
 const maxPoints = 4;
 let originalImageData = null; // To store the original image data for OpenCV processing
 
+
+
+
+
+
 inputElement.addEventListener("change", (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
     imgElement.onload = function() {
+        console.log("Image uploaded Successfully");
         // Set canvas dimensions and draw the original image
         canvas.width = imgElement.naturalWidth;
         canvas.height = imgElement.naturalHeight;
@@ -26,147 +32,165 @@ inputElement.addEventListener("change", (e) => {
 }, false);
 function reset()
 {   
-    canvas.width = 0;
-    canvas.height = 0;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    imgElement.src = '';
-    inputElement.value = '';
-    points = [];
-    canvas.width = 0;
-    canvas.height = 0;
-
-    document.getElementById("canvasoutputrect").remove();
-
-    let canvasdots = document.createElement('canvas');
-    canvasdots.id = "canvasoutputrect";
-    canvasdots.width = 0;
-    canvasdots.height = 0;
-    document.body.appendChild(canvasdots);
-
-    let outputs = document.getElementsByClassName("outputs");
-    while(outputs.length > 0){
-        outputs[0].parentNode.removeChild(outputs[0]);
-    }
-    document.getElementById("detectedText").textContent = "Text";
+    location.reload();
+    console.log('reset');
 }
 
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'r' || event.key === 'R') {
+        reset();
+    }
+});
 
+let croppedImage;
 function processImage(imageData) {
     let img = new Image();
-    img.onload = function() {
+    img.onload = async function() {
         let src = cv.imread(img);
-        
         let threshold = new cv.Mat();
-        let contours = new cv.MatVector();
-        let hierarchy = new cv.Mat();
+        
 
         // Convert to grayscale and apply threshold or edge detection
         threshold = filter(src);
+        cv.imshow("canvasOutput", threshold);//output it into canvasOutput so we can get the data and send it to the performOCR
+        cv.imshow("canvasoutputrect", threshold);
 
-        // Find contours
-        cv.findContours(threshold, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+        let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
+        await performOCR(dataURL);
 
-        // Initialize the output image
-        let dst = new cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-        let send = 0;
-        // Combine and draw contours for larger areas
-        for (let i = 0; i < contours.size(); ++i) {
-            let cnt = contours.get(i);
-            let rect = cv.boundingRect(cnt);
 
-            if(rect.width !== src.cols && rect.height !== src.rows)
-            {
-            // Filter contours based on size to avoid small text areas
-            if (rect.width > src.cols / 3 && rect.height > src.rows / 3) { // Adjust these thresholds as needed
-
-                // Approximate the contour to a polygon with fewer vertices
-                let approx = new cv.Mat();
-                cv.approxPolyDP(cnt, approx, 0.02 * cv.arcLength(cnt, true), true);
-
-                if (approx.rows === 4) {  // If the contour has 4 points (corners)
-                    let points = [];
-                    for (let j = 0; j < 4; j++) {
-                        let corner = new cv.Point(approx.data32S[j * 2], approx.data32S[j * 2 + 1]);
-                        cv.circle(dst, corner, 5, new cv.Scalar(255, 0, 0), 2); // Draw the corners
-                        points.push([corner.x, corner.y]);
-                        console.log(`Corner ${j + 1}:`, corner);
-                    }
-                    orderPoints(points);
-                    // New Perspective Transformation
-                    let input_pts = new cv.Mat(4, 1, cv.CV_32FC2);
-                    let output_pts = new cv.Mat(4, 1, cv.CV_32FC2);
-                    calculateDimensions(points);
-                    // New Perspective Transformation
-                    window.input_pts.forEach((pt, i) => {
-                        input_pts.floatPtr(i)[0] = pt[0];
-                        input_pts.floatPtr(i)[1] = pt[1];
-                    });
-                    send++;
+        function detectFace() {
+    
+            var faceCanvas = document.getElementById("outputFace"); // faceCanvas is the id of faceCanvas tag
+    
+            // Load the image from the canvas
+            var src = cv.imread(faceCanvas);
+            var dst = new cv.Mat();
+            var gray = new cv.Mat();
+            var faces = new cv.RectVector();
+            var classifier = new cv.CascadeClassifier();
+            var utils = new Utils('errorMessage');
+            var faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
+    
+            // Load the classifier
+            utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
+                classifier.load(faceCascadeFile); // Load the cascade from file 
+    
+                // Process the image after the cascade has been loaded
+                processfaceCanvas();
+            });
+    
+            async function processfaceCanvas() {
+                let foundedFaces= 0;
+                // Convert the image to grayscale
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+    
+                try {
+                    // Detect faces
+                    classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
                     
-                    output_pts.floatPtr(0)[0] = 0;
-                    output_pts.floatPtr(0)[1] = 0;
-                    output_pts.floatPtr(1)[0] = window.max_width;
-                    output_pts.floatPtr(1)[1] = 0;
-                    output_pts.floatPtr(2)[0] = window.max_width;
-                    output_pts.floatPtr(2)[1] = window.max_height;
-                    output_pts.floatPtr(3)[0] = 0;
-                    output_pts.floatPtr(3)[1] = window.max_height;
-                    
-
-                    let matrix = cv.getPerspectiveTransform(input_pts, output_pts);
-                    let warped = new cv.Mat();
-                    cv.warpPerspective(src, warped, matrix, new cv.Size(window.max_width, window.max_height), cv.INTER_LINEAR);
-                    threshold = filter(warped);
-
-
-                    let canvasId = `canvasoutput${i}`;
-
-            // Create a new canvas element
-            let canvas2 = document.createElement('canvas');
-            canvas2.id = canvasId;
-            canvas2.width = threshold.cols;
-            canvas2.height = threshold.rows;
-            canvas2.classList = "outputs";
-            canvas2.style.display = "block";
-            document.body.appendChild(canvas2); // Append the canvas to the body (or any container you prefer)
-
-            
-
-            // Display the image on the canvas
-            cv.imshow(canvasId, threshold);
-
-            // Convert canvas to data URL
-            let canvasElement = document.getElementById(canvasId);
-            let dataURL = canvasElement.toDataURL('image/png');
-
-                    //cv.imshow('canvasOutput', threshold);
-                    //let dataURL = document.getElementById("canvasOutput").toDataURL("image/png");
-                    if(send === 1)
-                    performOCR(dataURL);
-                    
-                    // Clean up
-                    matrix.delete();
-                    warped.delete();
-                    input_pts.delete();
-                    output_pts.delete();
+                } catch (err) {
+                    console.log(err);
                 }
+    
+                // Draw rectangles around the detected faces
+                for (let i = 0; i < faces.size(); ++i) {
+                    let face = faces.get(i);
+                    
+                    if(face.width >= src.cols*0.05 && face.height >= src.rows*0.05)
+                    {
+                        foundedFaces++;
 
-                // Clean up the approximation matrix
-                approx.delete();
+                        let point1; 
+                        let point2;
+                        let point3;
+                        let point4;
+                        if(src.cols>src.rows)// for checking if the image is in portrait or landscape so that cropped image will be more accurate
+                        {
+                            point1 = new cv.Point(face.x-src.rows * 0.03, face.y-src.rows * 0.03);
+                            point2 = new cv.Point(face.x + face.width+src.rows * 0.03, face.y + face.height+src.rows * 0.03);
+                            point3 = new cv.Point(face.x-src.rows *0.03, face.y+ face.height+src.rows * 0.03);
+                            point4 = new cv.Point(face.x + face.width+src.rows * 0.03, face.y-src.rows * 0.03);
+                        }
+                        else
+                        {
+                            point1 = new cv.Point(face.x-src.cols * 0.03, face.y-src.cols * 0.03);
+                            point2 = new cv.Point(face.x + face.width+src.cols * 0.03, face.y + face.height+src.cols * 0.03);
+                            point3 = new cv.Point(face.x-src.cols *0.03, face.y+ face.height+src.cols * 0.03);
+                            point4 = new cv.Point(face.x + face.width+src.cols * 0.03, face.y-src.cols * 0.03);
+                        }
+
+                        points =
+                        [
+                            point1,
+                            point2,
+                            point3,
+                            point4
+                        ];
+                        console.log(points);
+                        orderPoints(points);
+                        cropImage();
+                        cv.rectangle(src, point1, point2, [255, 0, 0, 255],src.cols/300);
+                    }
+                }
+                if(foundedFaces === 0)
+                {
+                    console.error("no faces found");
+                }
+    
+                // Display the result on the canvas
+                cv.imshow("outputFace", src);
+    
+                // Clean up
+                src.delete();
+                dst.delete();
+                gray.delete();
+                faces.delete();
+                classifier.delete();
             }
-            }
-            
         }
 
+        cv.imshow("outputFace", src);//output into outputFace so that detectFace function can get it from there
+        detectFace();
 
-        cv.imshow('canvasoutputrect', dst);
+        async function cropImage()
+        {
+            const cropCanvas = document.getElementById('canvasOutput');
+            const ctx = cropCanvas.getContext('2d');
+
+            // Calculate the crop area from the points
+            const cropX = Math.min(...points.map(p => p.x));
+            const cropY = Math.min(...points.map(p => p.y));
+            const cropWidth = Math.max(...points.map(p => p.x)) - cropX;
+            const cropHeight = Math.max(...points.map(p => p.y)) - cropY;
+
+            // Set canvas size to the crop size
+            cropCanvas.width = cropWidth;
+            cropCanvas.height = cropHeight;
+
+            // Draw the cropped area on the canvas
+            ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+            // Detect the image format
+            const originalFormat = img.src.split(';')[0].split('/')[1];  // Extract the format from the image source
+            const validFormats = ['png', 'jpeg', 'jpg', 'webp']; // Add more formats if needed
+
+            let format = 'png'; // Default format
+            if (validFormats.includes(originalFormat)) {
+                format = originalFormat;
+            }
+
+            // Convert canvas to a data URL (base64) and send to server
+            const croppedImage = cropCanvas.toDataURL(`image/${format}`);
+            await upload(croppedImage);
+        }
+    
+
+        //upload(dataURL);
 
         // Clean up
         src.delete();
         threshold.delete();
-        contours.delete();
-        hierarchy.delete();
-        dst.delete();
     };
     img.src = imageData;
 }
@@ -179,7 +203,7 @@ function filter(input)
     cv.cvtColor(input, gray, cv.COLOR_RGB2GRAY, 0);
 
         // Apply binary thresholding
-    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 13);
+    cv.adaptiveThreshold(gray, threshold, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 63,17);
     return threshold;
 }
 
@@ -242,8 +266,8 @@ function calculateDimensions(points) {
 }
 
 
-function performOCR(imgData) {
-    fetch('/performOCR', {
+async function performOCR(imgData) {
+    await fetch('/performOCR', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -258,4 +282,19 @@ function performOCR(imgData) {
     .catch(error => {
         console.error('Error:', error);
     });
+}
+
+
+async function upload(imgData) {
+    await fetch('/upload', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imgData }) // Ensure imgData is a string
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+    
 }
